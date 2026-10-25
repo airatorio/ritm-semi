@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Капитал жизни</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #16181d; --muted: #6b7280; --line: #e5e7eb;
+    --accent: #2f6fed; --focus: #e5484d; --bar: #9db5f5; --goal: #9ca3af;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115; --card: #181b21; --text: #eef0f3; --muted: #9aa1ad; --line: #2a2f38;
+      --accent: #6b9bff; --focus: #ff6369; --bar: #3d5a9e; --goal: #6b7280;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115; --card: #181b21; --text: #eef0f3; --muted: #9aa1ad; --line: #2a2f38;
+    --accent: #6b9bff; --focus: #ff6369; --bar: #3d5a9e; --goal: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  .cards { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .card .label { color: var(--muted); font-size: 13px; }
+  .card .value { font-size: 22px; font-weight: 650; margin-top: 2px; }
+  .card.focus { border-color: var(--focus); }
+  .card.focus .value { color: var(--focus); }
+  .panels { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 720px) {
+    .cards { grid-template-columns: repeat(3, 1fr); }
+    .panels { grid-template-columns: 1.2fr 1fr; }
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 10px; }
+  svg { display: block; width: 100%; height: auto; }
+  .bars { display: grid; gap: 8px; }
+  .row { display: grid; grid-template-columns: 92px 1fr 22px; align-items: center; gap: 8px; font-size: 14px; }
+  .track { position: relative; height: 12px; background: var(--line); border-radius: 6px; }
+  .fill { position: absolute; inset: 0 auto 0 0; background: var(--bar); border-radius: 6px; }
+  .row.focus .fill { background: var(--focus); }
+  .row.focus .name { color: var(--focus); font-weight: 600; }
+  .mark { position: absolute; left: 70%; top: -3px; bottom: -3px; width: 2px; background: var(--goal); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .err { color: var(--focus); }
+</style>
+</head>
+<body>
+<h1>Капитал жизни</h1>
+<div id="app" class="muted">Загрузка…</div>
+<script>
+(function () {
+  var tgApp = window.Telegram && window.Telegram.WebApp;
+  if (tgApp) {
+    tgApp.ready(); tgApp.expand();
+    if (tgApp.colorScheme) document.documentElement.setAttribute("data-theme", tgApp.colorScheme);
+  }
+  var params = new URLSearchParams(location.hash.slice(1));
+  var token = params.get("t"), api = params.get("api");
+  var app = document.getElementById("app");
+  if (!token || !api) { app.innerHTML = '<p class="err">Открой экран из бота: /screen</p>'; return; }
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function ddmm(d) { return d.slice(8, 10) + "." + d.slice(5, 7); }
+
+  function chart(weeks, start, end) {
+    var total = Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 6048e5) + 1);
+    var W = 340, H = 200, L = 26, R = 8, T = 10, B = 24;
+    var x = function (i) { return L + (W - L - R) * (total === 1 ? 0 : i / (total - 1)); };
+    var y = function (v) { return T + (H - T - B) * (1 - v / 10); };
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Уровень по неделям">';
+    [0, 5, 10].forEach(function (v) {
+      s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="var(--line)"/>';
+      s += '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + v + '</text>';
+    });
+    s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(7) + '" y2="' + y(7) + '" stroke="var(--goal)" stroke-dasharray="5 4"/>';
+    s += '<text x="' + (W - R) + '" y="' + (y(7) - 4) + '" font-size="10" text-anchor="end" fill="var(--muted)">цель 7</text>';
+    var pts = weeks.map(function (w) {
+      var i = Math.round((Date.parse(w.week) - Date.parse(start)) / 6048e5);
+      return [x(Math.max(0, i)), y(w.level), w];
+    });
+    if (pts.length > 1) s += '<polyline fill="none" stroke="var(--accent)" stroke-width="2.5" points="' + pts.map(function (p) { return p[0] + "," + p[1]; }).join(" ") + '"/>';
+    pts.forEach(function (p) { s += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3.5" fill="var(--accent)"><title>' + ddmm(p[2].week) + ': ' + p[2].level + '</title></circle>'; });
+    s += '<text x="' + L + '" y="' + (H - 6) + '" font-size="10" fill="var(--muted)">' + ddmm(start) + '</text>';
+    s += '<text x="' + (W - R) + '" y="' + (H - 6) + '" font-size="10" text-anchor="end" fill="var(--muted)">' + ddmm(end) + '</text>';
+    return s + '</svg>';
+  }
+
+  fetch(api + "?screen=" + encodeURIComponent(token)).then(function (r) {
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  }).then(function (d) {
+    var focusKey = d.focus && d.focus.key;
+    var html = '<div class="cards">' +
+      '<div class="card"><div class="label">Уровень персонажа</div><div class="value">' + (d.level == null ? "—" : d.level) + ' → цель 7</div></div>' +
+      '<div class="card focus"><div class="label">Фокус недели</div><div class="value">' + esc(d.focus ? d.focus.name : "—") + '</div></div>' +
+      '<div class="card"><div class="label">Лимит развлечений</div><div class="value">' + (d.stake_pct == null ? "—" : d.stake_pct + "%") + ' · ' + d.checkins_week + ' из 7</div><div class="muted">чек-инов на этой неделе</div></div>' +
+      '</div><div class="panels">' +
+      '<div class="card panel"><h2>Уровень по неделям сезона</h2>' +
+      (d.season.weeks.length ? chart(d.season.weeks, d.season.start, d.season.end) : '<p class="muted">График появится после первого ревью.</p>') +
+      '</div><div class="card panel"><h2>Сферы</h2><div class="bars">' +
+      d.spheres.map(function (s) {
+        var v = s.score == null ? 0 : s.score;
+        return '<div class="row' + (s.key === focusKey ? " focus" : "") + '"><span class="name">' + esc(s.name) + '</span>' +
+          '<div class="track"><div class="fill" style="width:' + v * 10 + '%"></div><div class="mark"></div></div>' +
+          '<span class="num">' + (s.score == null ? "—" : s.score) + '</span></div>';
+      }).join("") +
+      '</div></div></div>';
+    app.className = ""; app.innerHTML = html;
+  }).catch(function (e) {
+    app.innerHTML = '<p class="err">Не удалось загрузить данные (' + esc(e.message) + ').</p>';
+  });
+})();
+</script>
+</body>
+</html>
